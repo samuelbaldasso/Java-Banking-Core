@@ -337,7 +337,7 @@ This project is licensed under the MIT License.
 
 For issues and questions:
 - Create an issue in the repository
-- Contact: your-email@domain.com
+- Contact: baldassosamuel93@gmail.com
 
 ---
 
