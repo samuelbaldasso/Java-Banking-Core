@@ -35,229 +35,238 @@ import java.util.stream.Collectors;
 @Transactional
 public class LedgerApplicationService {
 
-    private static final Logger logger = LoggerFactory.getLogger(LedgerApplicationService.class);
+        private static final Logger logger = LoggerFactory.getLogger(LedgerApplicationService.class);
 
-    private final AccountJpaRepository accountRepository;
-    private final LedgerTransactionJpaRepository transactionRepository;
-    private final TransactionProcessor transactionProcessor;
-    private final DomainEventPublisher eventPublisher;
-    private final AccountMapper accountMapper;
-    private final LedgerTransactionMapper transactionMapper;
+        private final AccountJpaRepository accountRepository;
+        private final LedgerTransactionJpaRepository transactionRepository;
+        private final TransactionProcessor transactionProcessor;
+        private final DomainEventPublisher eventPublisher;
+        private final AccountMapper accountMapper;
+        private final LedgerTransactionMapper transactionMapper;
 
-    public LedgerApplicationService(
-            AccountJpaRepository accountRepository,
-            LedgerTransactionJpaRepository transactionRepository,
-            TransactionProcessor transactionProcessor,
-            DomainEventPublisher eventPublisher,
-            AccountMapper accountMapper,
-            LedgerTransactionMapper transactionMapper) {
-        this.accountRepository = accountRepository;
-        this.transactionRepository = transactionRepository;
-        this.transactionProcessor = transactionProcessor;
-        this.eventPublisher = eventPublisher;
-        this.accountMapper = accountMapper;
-        this.transactionMapper = transactionMapper;
-    }
-
-    /**
-     * Posts a transaction to the ledger.
-     * Implements idempotency via externalId - same externalId returns existing
-     * transaction.
-     */
-    public TransactionDto postTransaction(PostTransactionCommand command) {
-        // Check for idempotency - if transaction with this externalId already exists,
-        // return it
-        Optional<LedgerTransactionJpaEntity> existingEntity = transactionRepository
-                .findByExternalId(command.getExternalId());
-
-        if (existingEntity.isPresent()) {
-            logger.info("Transaction with externalId {} already exists, returning existing transaction",
-                    command.getExternalId());
-            LedgerTransaction existing = transactionMapper.toDomain(existingEntity.get());
-            return toDto(existing);
+        public LedgerApplicationService(
+                        AccountJpaRepository accountRepository,
+                        LedgerTransactionJpaRepository transactionRepository,
+                        TransactionProcessor transactionProcessor,
+                        DomainEventPublisher eventPublisher,
+                        AccountMapper accountMapper,
+                        LedgerTransactionMapper transactionMapper) {
+                this.accountRepository = accountRepository;
+                this.transactionRepository = transactionRepository;
+                this.transactionProcessor = transactionProcessor;
+                this.eventPublisher = eventPublisher;
+                this.accountMapper = accountMapper;
+                this.transactionMapper = transactionMapper;
         }
 
-        // Load and lock all affected accounts
-        Map<UUID, Account> accounts = loadAndLockAccounts(command);
+        /**
+         * Posts a transaction to the ledger.
+         * Implements idempotency via externalId - same externalId returns existing
+         * transaction.
+         */
+        public TransactionDto postTransaction(PostTransactionCommand command) {
+                // Check for idempotency - if transaction with this externalId already exists,
+                // return it
+                Optional<LedgerTransactionJpaEntity> existingEntity = transactionRepository
+                                .findByExternalId(command.getExternalId());
 
-        // Validate all accounts can accept transactions and currency matches
-        validateAccounts(command, accounts);
+                if (existingEntity.isPresent()) {
+                        logger.info("Transaction with externalId {} already exists, returning existing transaction",
+                                        command.getExternalId());
+                        LedgerTransaction existing = transactionMapper.toDomain(existingEntity.get());
+                        return toDto(existing);
+                }
 
-        // Create ledger entries
-        List<LedgerEntry> entries = createEntries(command, accounts);
+                // Load and lock all affected accounts
+                Map<UUID, Account> accounts = loadAndLockAccounts(command);
 
-        // Create and validate transaction
-        LedgerTransaction transaction = LedgerTransaction.create(
-                command.getExternalId(),
-                command.getEventType(),
-                entries);
+                // Validate all accounts can accept transactions and currency matches
+                validateAccounts(command, accounts);
 
-        // Post the transaction (validates and changes status to POSTED)
-        transactionProcessor.postTransaction(transaction);
+                // Create ledger entries
+                List<LedgerEntry> entries = createEntries(command, accounts);
 
-        // Persist the transaction
-        LedgerTransactionJpaEntity entity = transactionMapper.toEntity(transaction);
-        transactionRepository.save(entity);
+                // Create and validate transaction
+                LedgerTransaction transaction = LedgerTransaction.create(
+                                command.getExternalId(),
+                                command.getEventType(),
+                                entries);
 
-        logger.info("Posted transaction {} with externalId {}",
-                transaction.getTransactionId(), command.getExternalId());
+                // Post the transaction (validates and changes status to POSTED)
+                transactionProcessor.postTransaction(transaction);
 
-        // Publish event asynchronously
-        eventPublisher.publishTransactionPosted(transaction);
+                // Persist the transaction
+                LedgerTransactionJpaEntity entity = transactionMapper.toEntity(transaction);
+                transactionRepository.save(entity);
 
-        return toDto(transaction);
-    }
+                logger.info("Posted transaction {} with externalId {}",
+                                transaction.getTransactionId(), command.getExternalId());
 
-    /**
-     * Reverses a posted transaction.
-     * Creates a mirror transaction with opposite entry types.
-     */
-    public TransactionDto reverseTransaction(UUID transactionId, UUID reversalExternalId) {
-        // Load original transaction
-        LedgerTransactionJpaEntity originalEntity = transactionRepository.findByIdWithEntries(transactionId)
-                .orElseThrow(() -> new InvalidTransactionException("Transaction not found: " + transactionId));
+                // Publish event asynchronously
+                eventPublisher.publishTransactionPosted(transaction);
 
-        LedgerTransaction originalTransaction = transactionMapper.toDomain(originalEntity);
-
-        // Check for idempotency of reversal
-        Optional<LedgerTransactionJpaEntity> existingReversalEntity = transactionRepository
-                .findByExternalId(reversalExternalId);
-
-        if (existingReversalEntity.isPresent()) {
-            logger.info("Reversal with externalId {} already exists, returning existing reversal",
-                    reversalExternalId);
-            LedgerTransaction existingReversal = transactionMapper.toDomain(existingReversalEntity.get());
-            return toDto(existingReversal);
+                return toDto(transaction);
         }
 
-        // Create reversal transaction
-        LedgerTransaction reversalTransaction = transactionProcessor.createReversal(
-                originalTransaction,
-                reversalExternalId);
+        /**
+         * Reverses a posted transaction.
+         * Creates a mirror transaction with opposite entry types.
+         */
+        public TransactionDto reverseTransaction(UUID transactionId, UUID reversalExternalId) {
+                // Load original transaction
+                LedgerTransactionJpaEntity originalEntity = transactionRepository.findByIdWithEntries(transactionId)
+                                .orElseThrow(() -> new InvalidTransactionException(
+                                                "Transaction not found: " + transactionId));
 
-        // Post the reversal
-        transactionProcessor.executeReversal(originalTransaction, reversalTransaction);
+                LedgerTransaction originalTransaction = transactionMapper.toDomain(originalEntity);
 
-        // Update original transaction status
-        originalEntity.setStatus(originalTransaction.getStatus());
-        originalEntity.setReversalTransactionId(reversalTransaction.getTransactionId());
-        transactionRepository.save(originalEntity);
+                // Check for idempotency of reversal
+                Optional<LedgerTransactionJpaEntity> existingReversalEntity = transactionRepository
+                                .findByExternalId(reversalExternalId);
 
-        // Persist reversal transaction
-        LedgerTransactionJpaEntity reversalEntity = transactionMapper.toEntity(reversalTransaction);
-        transactionRepository.save(reversalEntity);
+                if (existingReversalEntity.isPresent()) {
+                        logger.info("Reversal with externalId {} already exists, returning existing reversal",
+                                        reversalExternalId);
+                        LedgerTransaction existingReversal = transactionMapper.toDomain(existingReversalEntity.get());
+                        return toDto(existingReversal);
+                }
 
-        logger.info("Reversed transaction {} with reversal transaction {}",
-                transactionId, reversalTransaction.getTransactionId());
+                // Create reversal transaction
+                LedgerTransaction reversalTransaction = transactionProcessor.createReversal(
+                                originalTransaction,
+                                reversalExternalId);
 
-        // Publish event
-        eventPublisher.publishTransactionReversed(
-                reversalTransaction.getTransactionId(),
-                transactionId);
+                // Post the reversal
+                transactionProcessor.executeReversal(originalTransaction, reversalTransaction);
 
-        return toDto(reversalTransaction);
-    }
+                // Update original transaction status
+                originalEntity.setStatus(originalTransaction.getStatus());
+                originalEntity.setReversalTransactionId(reversalTransaction.getTransactionId());
+                transactionRepository.save(originalEntity);
 
-    /**
-     * Retrieves a transaction by ID.
-     */
-    @Transactional(readOnly = true)
-    public TransactionDto getTransaction(UUID transactionId) {
-        LedgerTransactionJpaEntity entity = transactionRepository.findByIdWithEntries(transactionId)
-                .orElseThrow(() -> new InvalidTransactionException("Transaction not found: " + transactionId));
+                // Persist reversal transaction
+                LedgerTransactionJpaEntity reversalEntity = transactionMapper.toEntity(reversalTransaction);
+                transactionRepository.save(reversalEntity);
 
-        LedgerTransaction transaction = transactionMapper.toDomain(entity);
-        return toDto(transaction);
-    }
+                logger.info("Reversed transaction {} with reversal transaction {}",
+                                transactionId, reversalTransaction.getTransactionId());
 
-    /**
-     * Loads and locks all accounts involved in the transaction.
-     * Uses pessimistic locking to ensure serialized access.
-     */
-    private Map<UUID, Account> loadAndLockAccounts(PostTransactionCommand command) {
-        Set<UUID> accountIds = command.getEntries().stream()
-                .map(EntryCommand::getAccountId)
-                .collect(Collectors.toSet());
+                // Publish event
+                eventPublisher.publishTransactionReversed(
+                                reversalTransaction.getTransactionId(),
+                                transactionId);
 
-        Map<UUID, Account> accounts = new HashMap<>();
-
-        for (UUID accountId : accountIds) {
-            AccountJpaEntity entity = accountRepository.findByIdWithLock(accountId)
-                    .orElseThrow(() -> new InvalidAccountException("Account not found: " + accountId));
-
-            accounts.put(accountId, accountMapper.toDomain(entity));
+                return toDto(reversalTransaction);
         }
 
-        return accounts;
-    }
+        /**
+         * Retrieves a transaction by ID.
+         */
+        @Transactional(readOnly = true)
+        public TransactionDto getTransaction(UUID transactionId) {
+                LedgerTransactionJpaEntity entity = transactionRepository.findByIdWithEntries(transactionId)
+                                .orElseThrow(() -> new InvalidTransactionException(
+                                                "Transaction not found: " + transactionId));
 
-    /**
-     * Validates all accounts can accept transactions and currencies match.
-     */
-    private void validateAccounts(PostTransactionCommand command, Map<UUID, Account> accounts) {
-        for (EntryCommand entryCmd : command.getEntries()) {
-            Account account = accounts.get(entryCmd.getAccountId());
-
-            // Validate account can accept transactions
-            account.validateCanAcceptTransaction();
-
-            // Validate currency matches
-            account.validateCurrency(entryCmd.getCurrency());
+                LedgerTransaction transaction = transactionMapper.toDomain(entity);
+                return toDto(transaction);
         }
-    }
 
-    /**
-     * Creates ledger entries from command.
-     */
-    private List<LedgerEntry> createEntries(PostTransactionCommand command, Map<UUID, Account> accounts) {
-        // We need a transaction ID for the entries, but we don't have it yet
-        // The LedgerTransaction.create will assign the same transaction ID to all
-        // entries
-        UUID transactionId = UUID.randomUUID();
-        Instant eventTime = Instant.now();
+        /**
+         * Loads and locks all accounts involved in the transaction.
+         * Uses pessimistic locking to ensure serialized access.
+         */
+        private Map<UUID, Account> loadAndLockAccounts(PostTransactionCommand command) {
+                // 1. Extrai os IDs
+                // 2. Remove duplicatas (distinct) para não travar o mesmo ID duas vezes
+                // 3. Ordena os UUIDs (Comparable) para garantir a ordem de travamento
+                // 4. Coleta para LISTA (que mantém a ordem)
+                List<UUID> sortedAccountIds = command.getEntries().stream()
+                                .map(EntryCommand::getAccountId)
+                                .distinct()
+                                .sorted()
+                                .toList(); // Java 16+ ou .collect(Collectors.toList())
 
-        return command.getEntries().stream()
-                .map(entryCmd -> LedgerEntry.create(
-                        transactionId,
-                        entryCmd.getAccountId(),
-                        Money.of(entryCmd.getAmount(), entryCmd.getCurrency()),
-                        entryCmd.getEntryType(),
-                        command.getEventType(),
-                        eventTime))
-                .collect(Collectors.toList());
-    }
+                Map<UUID, Account> accounts = new HashMap<>();
 
-    /**
-     * Converts LedgerTransaction domain model to DTO.
-     */
-    private TransactionDto toDto(LedgerTransaction transaction) {
-        List<LedgerEntryDto> entryDtos = transaction.getEntries().stream()
-                .map(this::toEntryDto)
-                .collect(Collectors.toList());
+                // Agora sim: iteração determinística
+                for (UUID accountId : sortedAccountIds) {
+                        AccountJpaEntity entity = accountRepository.findByIdWithLock(accountId)
+                                        .orElseThrow(() -> new InvalidAccountException(
+                                                        "Account not found: " + accountId));
 
-        return new TransactionDto(
-                transaction.getTransactionId(),
-                transaction.getExternalId(),
-                transaction.getEventType(),
-                transaction.getStatus(),
-                transaction.getCreatedAt(),
-                entryDtos,
-                transaction.getReversalTransactionId().orElse(null));
-    }
+                        accounts.put(accountId, accountMapper.toDomain(entity));
+                }
+                return accounts;
+        }
 
-    /**
-     * Converts LedgerEntry domain model to DTO.
-     */
-    private LedgerEntryDto toEntryDto(LedgerEntry entry) {
-        return new LedgerEntryDto(
-                entry.getLedgerEntryId(),
-                entry.getTransactionId(),
-                entry.getAccountId(),
-                entry.getAmount().getAmount(),
-                entry.getAmount().getCurrencyCode(),
-                entry.getEntryType(),
-                entry.getEventType(),
-                entry.getEventTime(),
-                entry.getRecordedAt());
-    }
+        /**
+         * Validates all accounts can accept transactions and currencies match.
+         */
+        private void validateAccounts(PostTransactionCommand command, Map<UUID, Account> accounts) {
+                for (EntryCommand entryCmd : command.getEntries()) {
+                        Account account = accounts.get(entryCmd.getAccountId());
+
+                        // Validate account can accept transactions
+                        account.validateCanAcceptTransaction();
+
+                        // Validate currency matches
+                        account.validateCurrency(entryCmd.getCurrency());
+                }
+        }
+
+        /**
+         * Creates ledger entries from command.
+         */
+        private List<LedgerEntry> createEntries(PostTransactionCommand command, Map<UUID, Account> accounts) {
+                // We need a transaction ID for the entries, but we don't have it yet
+                // The LedgerTransaction.create will assign the same transaction ID to all
+                // entries
+                UUID transactionId = UUID.randomUUID();
+                Instant eventTime = Instant.now();
+
+                return command.getEntries().stream()
+                                .map(entryCmd -> LedgerEntry.create(
+                                                transactionId,
+                                                entryCmd.getAccountId(),
+                                                Money.of(entryCmd.getAmount(), entryCmd.getCurrency()),
+                                                entryCmd.getEntryType(),
+                                                command.getEventType(),
+                                                eventTime))
+                                .collect(Collectors.toList());
+        }
+
+        /**
+         * Converts LedgerTransaction domain model to DTO.
+         */
+        private TransactionDto toDto(LedgerTransaction transaction) {
+                List<LedgerEntryDto> entryDtos = transaction.getEntries().stream()
+                                .map(this::toEntryDto)
+                                .collect(Collectors.toList());
+
+                return new TransactionDto(
+                                transaction.getTransactionId(),
+                                transaction.getExternalId(),
+                                transaction.getEventType(),
+                                transaction.getStatus(),
+                                transaction.getCreatedAt(),
+                                entryDtos,
+                                transaction.getReversalTransactionId().orElse(null));
+        }
+
+        /**
+         * Converts LedgerEntry domain model to DTO.
+         */
+        private LedgerEntryDto toEntryDto(LedgerEntry entry) {
+                return new LedgerEntryDto(
+                                entry.getLedgerEntryId(),
+                                entry.getTransactionId(),
+                                entry.getAccountId(),
+                                entry.getAmount().getAmount(),
+                                entry.getAmount().getCurrencyCode(),
+                                entry.getEntryType(),
+                                entry.getEventType(),
+                                entry.getEventTime(),
+                                entry.getRecordedAt());
+        }
 }
