@@ -31,117 +31,100 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:testdb",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.flyway.enabled=false",
-        "spring.kafka.producer.bootstrap-servers=localhost:9092",
-        "spring.kafka.consumer.bootstrap-servers=localhost:9092"
+                "spring.datasource.url=jdbc:h2:mem:testdb",
+                "spring.datasource.driver-class-name=org.h2.Driver",
+                "spring.jpa.hibernate.ddl-auto=create-drop",
+                "spring.flyway.enabled=false",
+                "spring.kafka.producer.bootstrap-servers=localhost:9092",
+                "spring.kafka.consumer.bootstrap-servers=localhost:9092"
 })
 @Transactional
 class LedgerIntegrationTest {
 
-    @Autowired
-    private AccountApplicationService accountService;
+        @Autowired
+        private AccountApplicationService accountService;
 
-    @Autowired
-    private LedgerApplicationService ledgerService;
+        @Autowired
+        private LedgerApplicationService ledgerService;
 
-    @Autowired
-    private BalanceApplicationService balanceService;
+        @Autowired
+        private BalanceApplicationService balanceService;
 
-    @Test
-    void completeTransferFlowShouldWork() {
-        // Step 1: Create two ASSET accounts
-        AccountDto accountA = accountService.createAccount(AccountType.ASSET, "BRL");
-        AccountDto accountB = accountService.createAccount(AccountType.ASSET, "BRL");
+        @Test
+        void completeTransferFlowShouldWork() {
+                // Step 1: Create two ASSET accounts
+                AccountDto accountA = accountService.createAccount(AccountType.ASSET, "BRL");
+                AccountDto accountB = accountService.createAccount(AccountType.ASSET, "BRL");
 
-        assertNotNull(accountA.getAccountId());
-        assertNotNull(accountB.getAccountId());
+                assertNotNull(accountA.getAccountId());
+                assertNotNull(accountB.getAccountId());
 
-        // Step 2: Post initial deposits to account A (100 BRL)
-        UUID depositExternalId = UUID.randomUUID();
-        PostTransactionCommand depositCmd = new PostTransactionCommand(
-                depositExternalId,
-                EventType.DEPOSIT,
-                List.of(
-                        new EntryCommand(accountA.getAccountId(), new BigDecimal("100"), "BRL", EntryType.DEBIT)
-                // Note: In real scenario, credit would go to a funding account
-                // For simplicity, we'll create a balanced transaction in next test
-                ));
+                UUID transferExternalId = UUID.randomUUID();
 
-        // Actually, let's do a proper transfer between accounts
-        UUID transferExternalId = UUID.randomUUID();
-        PostTransactionCommand transferCmd = new PostTransactionCommand(
-                transferExternalId,
-                EventType.TRANSFER,
-                List.of(
-                        new EntryCommand(accountA.getAccountId(), new BigDecimal("100"), "BRL", EntryType.DEBIT),
-                        new EntryCommand(accountB.getAccountId(), new BigDecimal("100"), "BRL", EntryType.CREDIT)));
+                // Create a funding account first
+                AccountDto fundingAccount = accountService.createAccount(AccountType.LIABILITY, "BRL");
 
-        // Should create a balanced transaction instead
-        // Let me fix this
+                // Deposit 100 to account A from funding
+                PostTransactionCommand initialDeposit = new PostTransactionCommand(
+                                UUID.randomUUID(),
+                                EventType.DEPOSIT,
+                                List.of(
+                                                new EntryCommand(accountA.getAccountId(), new BigDecimal("100"), "BRL",
+                                                                EntryType.DEBIT),
+                                                new EntryCommand(fundingAccount.getAccountId(), new BigDecimal("100"),
+                                                                "BRL",
+                                                                EntryType.CREDIT)));
 
-        // Create a funding account first
-        AccountDto fundingAccount = accountService.createAccount(AccountType.LIABILITY, "BRL");
+                TransactionDto depositTx = ledgerService.postTransaction(initialDeposit);
+                assertEquals(TransactionStatus.POSTED, depositTx.getStatus());
 
-        // Deposit 100 to account A from funding
-        PostTransactionCommand initialDeposit = new PostTransactionCommand(
-                UUID.randomUUID(),
-                EventType.DEPOSIT,
-                List.of(
-                        new EntryCommand(accountA.getAccountId(), new BigDecimal("100"), "BRL", EntryType.DEBIT),
-                        new EntryCommand(fundingAccount.getAccountId(), new BigDecimal("100"), "BRL",
-                                EntryType.CREDIT)));
+                // Step 3: Verify account A balance = 100
+                BalanceDto balanceA = balanceService.getBalance(accountA.getAccountId());
+                assertEquals(new BigDecimal("100.00"), balanceA.getBalance());
+                assertEquals("BRL", balanceA.getCurrency());
 
-        TransactionDto depositTx = ledgerService.postTransaction(initialDeposit);
-        assertEquals(TransactionStatus.POSTED, depositTx.getStatus());
+                // Account B balance should be 0
+                BalanceDto balanceB = balanceService.getBalance(accountB.getAccountId());
+                assertEquals(new BigDecimal("0.00"), balanceB.getBalance());
 
-        // Step 3: Verify account A balance = 100
-        BalanceDto balanceA = balanceService.getBalance(accountA.getAccountId());
-        assertEquals(new BigDecimal("100.00"), balanceA.getBalance());
-        assertEquals("BRL", balanceA.getCurrency());
+                // Step 4: Transfer 30 from A to B
+                PostTransactionCommand transferCommand = new PostTransactionCommand(
+                                transferExternalId,
+                                EventType.TRANSFER,
+                                List.of(
+                                                new EntryCommand(accountA.getAccountId(), new BigDecimal("30"), "BRL",
+                                                                EntryType.CREDIT),
+                                                new EntryCommand(accountB.getAccountId(), new BigDecimal("30"), "BRL",
+                                                                EntryType.DEBIT)));
 
-        // Account B balance should be 0
-        BalanceDto balanceB = balanceService.getBalance(accountB.getAccountId());
-        assertEquals(new BigDecimal("0.00"), balanceB.getBalance());
+                TransactionDto transferTx = ledgerService.postTransaction(transferCommand);
+                assertEquals(TransactionStatus.POSTED, transferTx.getStatus());
 
-        // Step 4: Transfer 30 from A to B
-        PostTransactionCommand transferCommand = new PostTransactionCommand(
-                transferExternalId,
-                EventType.TRANSFER,
-                List.of(
-                        new EntryCommand(accountA.getAccountId(), new BigDecimal("30"), "BRL", EntryType.CREDIT),
-                        new EntryCommand(accountB.getAccountId(), new BigDecimal("30"), "BRL", EntryType.DEBIT)));
+                // Step 5: Verify balances after transfer
+                balanceA = balanceService.getBalance(accountA.getAccountId());
+                assertEquals(new BigDecimal("70.00"), balanceA.getBalance()); // 100 - 30
 
-        TransactionDto transferTx = ledgerService.postTransaction(transferCommand);
-        assertEquals(TransactionStatus.POSTED, transferTx.getStatus());
+                balanceB = balanceService.getBalance(accountB.getAccountId());
+                assertEquals(new BigDecimal("30.00"), balanceB.getBalance()); // 0 + 30
 
-        // Step 5: Verify balances after transfer
-        balanceA = balanceService.getBalance(accountA.getAccountId());
-        assertEquals(new BigDecimal("70.00"), balanceA.getBalance()); // 100 - 30
+                // Step 6: Reverse the transfer
+                UUID reversalExternalId = UUID.randomUUID();
+                TransactionDto reversalTx = ledgerService.reverseTransaction(
+                                transferTx.getTransactionId(),
+                                reversalExternalId);
 
-        balanceB = balanceService.getBalance(accountB.getAccountId());
-        assertEquals(new BigDecimal("30.00"), balanceB.getBalance()); // 0 + 30
+                assertEquals(TransactionStatus.POSTED, reversalTx.getStatus());
+                assertEquals(EventType.REVERSAL, reversalTx.getEventType());
 
-        // Step 6: Reverse the transfer
-        UUID reversalExternalId = UUID.randomUUID();
-        TransactionDto reversalTx = ledgerService.reverseTransaction(
-                transferTx.getTransactionId(),
-                reversalExternalId);
+                // Step 7: Verify balances restored after reversal
+                balanceA = balanceService.getBalance(accountA.getAccountId());
+                assertEquals(new BigDecimal("100.00"), balanceA.getBalance()); // Back to 100
 
-        assertEquals(TransactionStatus.POSTED, reversalTx.getStatus());
-        assertEquals(EventType.REVERSAL, reversalTx.getEventType());
+                balanceB = balanceService.getBalance(accountB.getAccountId());
+                assertEquals(new BigDecimal("0.00"), balanceB.getBalance()); // Back to 0
 
-        // Step 7: Verify balances restored after reversal
-        balanceA = balanceService.getBalance(accountA.getAccountId());
-        assertEquals(new BigDecimal("100.00"), balanceA.getBalance()); // Back to 100
-
-        balanceB = balanceService.getBalance(accountB.getAccountId());
-        assertEquals(new BigDecimal("0.00"), balanceB.getBalance()); // Back to 0
-
-        // Step 8: Verify idempotency - posting same transaction again returns existing
-        TransactionDto duplicateTx = ledgerService.postTransaction(transferCommand);
-        assertEquals(transferTx.getTransactionId(), duplicateTx.getTransactionId());
-    }
+                // Step 8: Verify idempotency - posting same transaction again returns existing
+                TransactionDto duplicateTx = ledgerService.postTransaction(transferCommand);
+                assertEquals(transferTx.getTransactionId(), duplicateTx.getTransactionId());
+        }
 }

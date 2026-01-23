@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Sobrescrevemos o 'localhost' do application.yaml para 'db' (nome do serviço abaixo)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ledger_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+      # Desativa Kafka localmente se não quiser subir o cluster agora
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ""
+    depends_on:
+      - db
+    networks:
+      - banking-net
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ledger_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - banking-net
+
+volumes:
+  postgres_data:
+
+
+networks:
+  banking-net:
