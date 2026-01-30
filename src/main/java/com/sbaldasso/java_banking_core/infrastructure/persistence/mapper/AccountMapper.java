@@ -22,7 +22,8 @@ public class AccountMapper {
                 account.getAccountType(),
                 account.getCurrencyCode(),
                 account.getStatus(),
-                account.getCreatedAt());
+                account.getCreatedAt(),
+                null); // accountNumber can be set separately if needed
     }
 
     /**

@@ -8,10 +8,16 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ledger_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      # Keycloak configuration for container
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/banking-realm
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/banking-realm/protocol/openid-connect/certs
+      # Encryption key (use strong key in production)
+      ENCRYPTION_KEY: "MySecureEncryptionKey123!@#"
       # Desativa Kafka localmente se não quiser subir o cluster agora
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ""
     depends_on:
       - db
+      - keycloak
     networks:
       - banking-net
 
@@ -28,8 +34,42 @@ services:
     networks:
       - banking-net
 
+  # Keycloak for OAuth2/JWT authentication
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HTTP_ENABLED: true
+    ports:
+      - "8180:8080"  # Using 8180 to avoid conflict with app
+    depends_on:
+      - keycloak-db
+    networks:
+      - banking-net
+
+  # Separate PostgreSQL for Keycloak
+  keycloak-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    networks:
+      - banking-net
+
 volumes:
   postgres_data:
+  keycloak_data:
 
 
 networks:

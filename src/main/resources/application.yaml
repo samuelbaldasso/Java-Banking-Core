@@ -49,12 +49,23 @@ spring:
       auto-offset-reset: earliest
       properties:
         "[spring.json.trusted.packages]": "*"
+  
+  # OAuth2 Resource Server Configuration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak issuer URI - validates JWT tokens
+          issuer-uri: http://localhost:8180/realms/banking-realm
+          # JWK Set URI - public keys for JWT signature validation
+          jwk-set-uri: http://localhost:8180/realms/banking-realm/protocol/openid-connect/certs
 
 # Logging Configuration
 logging:
   level:
     com.sbaldasso.java_banking_core: INFO
     org.springframework.transaction: DEBUG
+    org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
@@ -64,3 +75,13 @@ ledger:
     topics:
       transaction-posted: ledger.transactions.posted
       transaction-reversed: ledger.transactions.reversed
+
+# Keycloak Configuration
+keycloak:
+  client-id: banking-api
+
+# Encryption Configuration
+# IMPORTANT: In production, use environment variables or vault services
+# Never commit encryption keys to version control
+encryption:
+  key: ${ENCRYPTION_KEY:CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR}
