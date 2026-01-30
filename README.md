@@ -12,7 +12,9 @@ A production-ready banking ledger system implementing double-entry bookkeeping p
 - ✅ **Event Publishing** - Kafka events for transaction lifecycle
 - ✅ **On-Demand Balance Calculation** - Derived from ledger entries
 - ✅ **REST API** - Complete CRUD with RFC 7807 error handling
-- ✅ **Spring Security** - Role-based access control
+- ✅ **OAuth2/JWT Authentication** - Enterprise-grade security with Keycloak
+- ✅ **Data Encryption at Rest** - AES-256 encryption for sensitive data
+- ✅ **Role-Based Access Control** - Fine-grained permissions (ADMIN, USER)
 
 ## 🏗️ Architecture
 
@@ -99,26 +101,64 @@ The application starts on http://localhost:8080
 
 ## 🔐 Authentication
 
-The API uses **HTTP Basic Authentication** with the following default users:
+The API uses **OAuth2 with JWT tokens** powered by **Keycloak** for enterprise-grade authentication.
 
-| Username | Password  | Role        |
-|----------|-----------|-------------|
-| admin    | admin123  | ADMIN, USER |
-| user     | user123   | USER        |
+### Quick Start
 
-**Example with curl:**
-```bash
-curl -u admin:admin123 http://localhost:8080/api/v1/accounts
-```
+1. **Start Keycloak:**
+   ```bash
+   docker-compose up keycloak keycloak-db
+   ```
+   Access Keycloak Admin Console at http://localhost:8180 (admin/admin)
 
-**⚠️ Security Note**: In production, replace in-memory users with database-backed authentication or OAuth2/JWT.
+2. **Configure Keycloak:**
+   Follow the detailed setup guide in [KEYCLOAK_SETUP.md](./KEYCLOAK_SETUP.md)
+
+3. **Get an Access Token:**
+   ```bash
+   curl -X POST http://localhost:8180/realms/banking-realm/protocol/openid-connect/token \
+     -d "client_id=banking-api" \
+     -d "grant_type=password" \
+     -d "username=admin_user" \
+     -d "password=admin123"
+   ```
+
+4. **Use the Token:**
+   ```bash
+   TOKEN="your_jwt_token_here"
+   curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:8080/api/v1/accounts
+   ```
+
+### Available Roles
+
+| Role | Permissions |
+|------|-------------|
+| **ADMIN** | Full access - create accounts, manage transactions, administrative operations |
+| **USER** | Read/write access - view accounts, create transactions, query balances |
+
+### Complete Authentication Guide
+
+For detailed authentication flows, token management, and troubleshooting, see [AUTHENTICATION.md](./AUTHENTICATION.md)
+
+### Security Features
+
+- ✅ **OAuth2/OIDC** - Industry standard authentication protocol
+- ✅ **JWT Tokens** - Stateless, cryptographically signed tokens
+- ✅ **Role-Based Access Control** - Fine-grained permissions
+- ✅ **Data Encryption at Rest** - AES-256 encryption for sensitive data
+- ✅ **Keycloak Integration** - Enterprise identity and access management
+
 
 ## 📚 API Documentation
+
+> **Note**: All endpoints (except `/actuator/health`) require a valid JWT token in the `Authorization: Bearer <TOKEN>` header.
 
 ### Create an Account
 
 ```bash
-curl -u admin:admin123 -X POST http://localhost:8080/api/v1/accounts \
+curl -H "Authorization: Bearer $TOKEN" \
+  -X POST http://localhost:8080/api/v1/accounts \
   -H "Content-Type: application/json" \
   -d '{
     "accountType": "ASSET",
@@ -140,7 +180,8 @@ curl -u admin:admin123 -X POST http://localhost:8080/api/v1/accounts \
 ### Post a Transaction
 
 ```bash
-curl -u user:user123 -X POST http://localhost:8080/api/v1/transactions \
+curl -H "Authorization: Bearer $TOKEN" \
+  -X POST http://localhost:8080/api/v1/transactions \
   -H "Content-Type: application/json" \
   -d '{
     "externalId": "tx-unique-001",
@@ -165,14 +206,15 @@ curl -u user:user123 -X POST http://localhost:8080/api/v1/transactions \
 ### Get Account Balance
 
 ```bash
-curl -u user:user123 http://localhost:8080/api/v1/balances/{accountId}
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/balances/{accountId}
 ```
 
 ### Reverse a Transaction
 
 ```bash
-curl -u admin:admin123 -X POST \
-  http://localhost:8080/api/v1/transactions/{transactionId}/reverse \
+curl -H "Authorization: Bearer $TOKEN" \
+  -X POST http://localhost:8080/api/v1/transactions/{transactionId}/reverse \
   -H "Content-Type: application/json" \
   -d '{
     "reversalExternalId": "reversal-unique-001"
@@ -274,18 +316,23 @@ Only **POSTED** transactions impact account balances.
 
 Before deploying to production:
 
-- [ ] Replace in-memory users with database/OAuth2 authentication
+- [x] ~~Replace in-memory users with database/OAuth2 authentication~~ ✅ **Implemented OAuth2/JWT with Keycloak**
+- [x] ~~Implement data encryption at rest~~ ✅ **AES-256 encryption for sensitive data**
+- [ ] Configure production Keycloak instance with HTTPS
+- [ ] Store encryption keys in secure vault (HashiCorp Vault, AWS KMS, etc.)
 - [ ] Configure production database connection pool
 - [ ] Set up Kafka cluster and topics
 - [ ] Add API rate limiting
 - [ ] Configure CORS policies
 - [ ] Set up monitoring and alerting
-- [ ] Enable HTTPS/TLS
-- [ ] Configure logging (centralized logs)
+- [ ] Enable HTTPS/TLS for all services
+- [ ] Configure centralized logging
 - [ ] Add OpenAPI/Swagger documentation
-- [ ] Implement audit logging
+- [ ] Implement comprehensive audit logging
 - [ ] Set up CI/CD pipeline
 - [ ] Configure backup and disaster recovery
+- [ ] Perform security penetration testing
+- [ ] Configure token rotation policies
 
 ## 📁 Project Structure
 
@@ -331,7 +378,8 @@ This project is licensed under the MIT License.
 
 - Integration tests require H2 in-memory database
 - Kafka is optional but recommended for production
-- Security uses Basic Auth (recommended: upgrade to JWT/OAuth2)
+- Keycloak requires additional setup (see KEYCLOAK_SETUP.md)
+- Encryption key should be stored in a secure vault for production
 
 ## 📞 Support
 

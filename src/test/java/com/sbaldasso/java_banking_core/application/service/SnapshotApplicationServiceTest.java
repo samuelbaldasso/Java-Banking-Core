@@ -221,7 +221,8 @@ class SnapshotApplicationServiceTest {
                 accountType,
                 currency,
                 com.sbaldasso.java_banking_core.domain.valueobject.AccountStatus.ACTIVE,
-                Instant.now());
+                Instant.now(),
+                null); // accountNumber not needed for tests
         return entity;
     }
 

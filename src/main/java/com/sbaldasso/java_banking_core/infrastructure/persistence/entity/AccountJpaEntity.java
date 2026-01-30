@@ -33,17 +33,22 @@ public class AccountJpaEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Convert(converter = com.sbaldasso.java_banking_core.infrastructure.encryption.SensitiveDataConverter.class)
+    @Column(name = "account_number", length = 500)
+    private String accountNumber;
+
     // JPA requires a default constructor
     protected AccountJpaEntity() {
     }
 
     public AccountJpaEntity(UUID accountId, AccountType accountType, String currency,
-            AccountStatus status, Instant createdAt) {
+            AccountStatus status, Instant createdAt, String accountNumber) {
         this.accountId = accountId;
         this.accountType = accountType;
         this.currency = currency;
         this.status = status;
         this.createdAt = createdAt;
+        this.accountNumber = accountNumber;
     }
 
     // Getters and setters
@@ -85,5 +90,13 @@ public class AccountJpaEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    public void setAccountNumber(String accountNumber) {
+        this.accountNumber = accountNumber;
     }
 }
