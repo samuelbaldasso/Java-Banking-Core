@@ -92,6 +92,13 @@
         <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
 
+    <!-- API Documentation -->
+    <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>2.3.0</version>
+    </dependency>
+
     <!-- Tests -->
     <dependency>
         <groupId>org.springframework.boot</groupId>

@@ -3,11 +3,12 @@ package com.sbaldasso.java_banking_core.api.controller;
 import com.sbaldasso.java_banking_core.application.dto.AccountDto;
 import com.sbaldasso.java_banking_core.application.service.AccountApplicationService;
 import com.sbaldasso.java_banking_core.domain.valueobject.AccountType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -46,12 +47,15 @@ public class AccountController {
     }
 
     /**
-     * Lists all accounts.
-     * GET /api/v1/accounts
+     * Lists all accounts with pagination.
+     * GET /api/v1/accounts?page=0&size=20&sort=createdAt,desc
+     * 
+     * @param pageable Pagination parameters (page, size, sort)
+     * @return Paginated list of accounts
      */
     @GetMapping
-    public ResponseEntity<List<AccountDto>> listAccounts() {
-        List<AccountDto> accounts = accountService.listAccounts();
+    public ResponseEntity<Page<AccountDto>> listAccounts(Pageable pageable) {
+        Page<AccountDto> accounts = accountService.listAccounts(pageable);
         return ResponseEntity.ok(accounts);
     }
 

@@ -7,12 +7,12 @@ import com.sbaldasso.java_banking_core.domain.valueobject.AccountType;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.entity.AccountJpaEntity;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.mapper.AccountMapper;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.repository.AccountJpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Application service for account operations.
@@ -56,14 +56,16 @@ public class AccountApplicationService {
     }
 
     /**
-     * Lists all accounts.
+     * Lists all accounts with pagination.
+     * 
+     * @param pageable Pagination parameters (page, size, sort)
+     * @return Page of account DTOs
      */
     @Transactional(readOnly = true)
-    public List<AccountDto> listAccounts() {
-        return accountRepository.findAll().stream()
+    public Page<AccountDto> listAccounts(Pageable pageable) {
+        return accountRepository.findAll(pageable)
                 .map(accountMapper::toDomain)
-                .map(this::toDto)
-                .collect(Collectors.toList());
+                .map(this::toDto);
     }
 
     /**
