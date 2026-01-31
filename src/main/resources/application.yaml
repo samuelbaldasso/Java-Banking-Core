@@ -75,6 +75,13 @@ ledger:
     topics:
       transaction-posted: ledger.transactions.posted
       transaction-reversed: ledger.transactions.reversed
+  outbox:
+    processor:
+      enabled: true
+      polling-interval-ms: 5000  # Poll every 5 seconds
+      batch-size: 100            # Process up to 100 events per batch
+      max-retries: 5             # Max retry attempts before marking as FAILED
+      retry-backoff-ms: 1000     # Wait 1 second between retries
 
 # Keycloak Configuration
 keycloak:
