@@ -11,7 +11,6 @@ import com.sbaldasso.java_banking_core.domain.model.LedgerEntry;
 import com.sbaldasso.java_banking_core.domain.model.LedgerTransaction;
 import com.sbaldasso.java_banking_core.domain.service.TransactionProcessor;
 import com.sbaldasso.java_banking_core.domain.valueobject.Money;
-import com.sbaldasso.java_banking_core.infrastructure.event.DomainEventPublisher;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.entity.AccountJpaEntity;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.entity.LedgerTransactionJpaEntity;
 import com.sbaldasso.java_banking_core.infrastructure.persistence.mapper.AccountMapper;
@@ -40,7 +39,7 @@ public class LedgerApplicationService {
         private final AccountJpaRepository accountRepository;
         private final LedgerTransactionJpaRepository transactionRepository;
         private final TransactionProcessor transactionProcessor;
-        private final DomainEventPublisher eventPublisher;
+        private final OutboxService outboxService;
         private final AccountMapper accountMapper;
         private final LedgerTransactionMapper transactionMapper;
 
@@ -48,13 +47,13 @@ public class LedgerApplicationService {
                         AccountJpaRepository accountRepository,
                         LedgerTransactionJpaRepository transactionRepository,
                         TransactionProcessor transactionProcessor,
-                        DomainEventPublisher eventPublisher,
+                        OutboxService outboxService,
                         AccountMapper accountMapper,
                         LedgerTransactionMapper transactionMapper) {
                 this.accountRepository = accountRepository;
                 this.transactionRepository = transactionRepository;
                 this.transactionProcessor = transactionProcessor;
-                this.eventPublisher = eventPublisher;
+                this.outboxService = outboxService;
                 this.accountMapper = accountMapper;
                 this.transactionMapper = transactionMapper;
         }
@@ -102,8 +101,8 @@ public class LedgerApplicationService {
                 logger.info("Posted transaction {} with externalId {}",
                                 transaction.getTransactionId(), command.getExternalId());
 
-                // Publish event asynchronously
-                eventPublisher.publishTransactionPosted(transaction);
+                // Save event to outbox (in same transaction - guaranteed delivery)
+                outboxService.saveTransactionPostedEvent(transaction);
 
                 return toDto(transaction);
         }
@@ -151,8 +150,8 @@ public class LedgerApplicationService {
                 logger.info("Reversed transaction {} with reversal transaction {}",
                                 transactionId, reversalTransaction.getTransactionId());
 
-                // Publish event
-                eventPublisher.publishTransactionReversed(
+                // Save event to outbox (in same transaction - guaranteed delivery)
+                outboxService.saveTransactionReversedEvent(
                                 reversalTransaction.getTransactionId(),
                                 transactionId);
 
