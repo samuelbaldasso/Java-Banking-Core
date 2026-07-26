@@ -23,7 +23,11 @@ public class OutboxEventJpaEntity {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
 
-    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
+    // The production schema (Postgres JSONB column) is owned by the Flyway
+    // migration. "jsonb" isn't a portable Hibernate columnDefinition (H2,
+    // used by tests, doesn't understand it), so use TEXT here instead, same
+    // as lastError below.
+    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
     private String payload;
 
     @Column(name = "created_at", nullable = false)

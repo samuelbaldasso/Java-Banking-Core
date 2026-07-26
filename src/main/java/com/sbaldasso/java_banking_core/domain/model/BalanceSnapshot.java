@@ -77,6 +77,33 @@ public class BalanceSnapshot {
     }
 
     /**
+     * Reconstitutes an existing snapshot from persistence, preserving its
+     * original identity and creation time instead of minting new ones.
+     */
+    public static BalanceSnapshot reconstitute(
+            UUID snapshotId,
+            UUID accountId,
+            Money balance,
+            Instant snapshotTime,
+            UUID lastEntryId,
+            Instant createdAt) {
+
+        Objects.requireNonNull(snapshotId, "Snapshot ID cannot be null");
+        Objects.requireNonNull(accountId, "Account ID cannot be null");
+        Objects.requireNonNull(balance, "Balance cannot be null");
+        Objects.requireNonNull(snapshotTime, "Snapshot time cannot be null");
+        Objects.requireNonNull(createdAt, "Created at cannot be null");
+
+        return new BalanceSnapshot(
+                snapshotId,
+                accountId,
+                balance,
+                snapshotTime,
+                lastEntryId,
+                createdAt);
+    }
+
+    /**
      * Checks if this snapshot can be used for calculating balance at a given time.
      * A snapshot is valid if its snapshot_time is before or equal to the query
      * time.

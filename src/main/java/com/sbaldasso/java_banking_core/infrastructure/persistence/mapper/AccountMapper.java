@@ -30,8 +30,11 @@ public class AccountMapper {
      * Converts JPA entity to domain Account.
      */
     public Account toDomain(AccountJpaEntity entity) {
-        return Account.create(
+        return Account.reconstitute(
+                entity.getAccountId(),
                 entity.getAccountType(),
-                entity.getCurrency());
+                entity.getCurrency(),
+                entity.getStatus(),
+                entity.getCreatedAt());
     }
 }

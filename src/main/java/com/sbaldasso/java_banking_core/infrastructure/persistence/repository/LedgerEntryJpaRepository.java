@@ -27,7 +27,7 @@ public interface LedgerEntryJpaRepository extends JpaRepository<LedgerEntryJpaEn
         @Query("""
                         SELECT e FROM LedgerEntryJpaEntity e
                         WHERE e.accountId = :accountId
-                        AND e.transaction.status = 'POSTED'
+                        AND e.transaction.status IN ('POSTED', 'REVERSED')
                         ORDER BY e.eventTime ASC
                         """)
         List<LedgerEntryJpaEntity> findPostedEntriesByAccount(@Param("accountId") UUID accountId);
@@ -43,7 +43,7 @@ public interface LedgerEntryJpaRepository extends JpaRepository<LedgerEntryJpaEn
         @Query("""
                         SELECT e FROM LedgerEntryJpaEntity e
                         WHERE e.accountId = :accountId
-                        AND e.transaction.status = 'POSTED'
+                        AND e.transaction.status IN ('POSTED', 'REVERSED')
                         AND e.eventTime <= :asOfTime
                         ORDER BY e.eventTime ASC
                         """)
@@ -70,7 +70,7 @@ public interface LedgerEntryJpaRepository extends JpaRepository<LedgerEntryJpaEn
          */
         @Query("""
                         SELECT e FROM LedgerEntryJpaEntity e
-                        WHERE e.transaction.status = 'POSTED'
+                        WHERE e.transaction.status IN ('POSTED', 'REVERSED')
                         AND e.eventTime BETWEEN :startTime AND :endTime
                         ORDER BY e.eventTime ASC
                         """)

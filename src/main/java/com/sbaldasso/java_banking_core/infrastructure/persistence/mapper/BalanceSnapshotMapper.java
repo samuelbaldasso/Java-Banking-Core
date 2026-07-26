@@ -21,12 +21,13 @@ public class BalanceSnapshotMapper {
 
         Money balance = Money.of(entity.getBalanceAmount(), entity.getBalanceCurrency());
 
-        // Use package-private constructor for reconstitution
-        return BalanceSnapshot.create(
+        return BalanceSnapshot.reconstitute(
+                entity.getSnapshotId(),
                 entity.getAccountId(),
                 balance,
                 entity.getSnapshotTime(),
-                entity.getLastEntryId());
+                entity.getLastEntryId(),
+                entity.getCreatedAt());
     }
 
     /**

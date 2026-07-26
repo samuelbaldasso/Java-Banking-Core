@@ -8,6 +8,7 @@ import com.sbaldasso.java_banking_core.infrastructure.persistence.repository.Out
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -18,13 +19,14 @@ import java.util.List;
 /**
  * Outbox Processor - Polls the outbox table and publishes events to Kafka.
  * Implements the relay component of the Transactional Outbox pattern.
- * 
+ *
  * This ensures:
  * - At-least-once delivery (events are retried on failure)
  * - Eventual consistency (events are eventually published)
  * - Fault tolerance (survives application crashes)
  */
 @Component
+@ConditionalOnProperty(value = "ledger.outbox.processor.enabled", havingValue = "true", matchIfMissing = true)
 public class OutboxProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(OutboxProcessor.class);

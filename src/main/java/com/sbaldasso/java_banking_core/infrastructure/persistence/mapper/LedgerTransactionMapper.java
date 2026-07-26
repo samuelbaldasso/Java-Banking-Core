@@ -52,9 +52,13 @@ public class LedgerTransactionMapper {
                 .map(entryMapper::toDomain)
                 .collect(Collectors.toList());
 
-        return LedgerTransaction.create(
+        return LedgerTransaction.reconstitute(
+                entity.getTransactionId(),
                 entity.getExternalId(),
                 entity.getEventType(),
-                entries);
+                entries,
+                entity.getStatus(),
+                entity.getCreatedAt(),
+                entity.getReversalTransactionId());
     }
 }

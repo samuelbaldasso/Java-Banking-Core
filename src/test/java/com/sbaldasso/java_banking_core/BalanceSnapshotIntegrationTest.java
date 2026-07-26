@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @TestPropertySource(properties = {
-                "spring.datasource.url=jdbc:h2:mem:snapshottest",
+                "spring.datasource.url=jdbc:h2:mem:snapshottest;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",
                 "spring.jpa.hibernate.ddl-auto=create-drop",
                 "spring.flyway.enabled=false",
@@ -150,7 +150,6 @@ class BalanceSnapshotIntegrationTest {
                                                                 EntryType.CREDIT))));
 
                 Thread.sleep(100);
-                Instant time2 = Instant.now();
 
                 // Transaction 2: +200
                 ledgerService.postTransaction(new PostTransactionCommand(
@@ -162,6 +161,8 @@ class BalanceSnapshotIntegrationTest {
                                                 new EntryCommand(fundingAccount.getAccountId(),
                                                                 new BigDecimal("200.00"), "BRL",
                                                                 EntryType.CREDIT))));
+
+                Instant time2 = Instant.now();
 
                 // Create snapshot at time2 (balance should be 300)
                 snapshotService.createSnapshotForAccount(account.getAccountId(), time2);

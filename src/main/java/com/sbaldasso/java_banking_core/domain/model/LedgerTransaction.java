@@ -53,7 +53,15 @@ public class LedgerTransaction {
         Objects.requireNonNull(eventType, "Event type cannot be null");
         Objects.requireNonNull(entries, "Entries cannot be null");
 
-        UUID transactionId = UUID.randomUUID();
+        if (entries.isEmpty()) {
+            throw new InvalidTransactionException(
+                    String.format("Transaction must have at least 2 entries, has %d", entries.size()));
+        }
+
+        // The entries already carry the transactionId assigned when they were
+        // created (see LedgerEntry.create); reuse it instead of generating a
+        // new one, otherwise validate() would reject every entry as mismatched.
+        UUID transactionId = entries.get(0).getTransactionId();
 
         // Create transaction to run validations
         LedgerTransaction transaction = new LedgerTransaction(
@@ -68,6 +76,30 @@ public class LedgerTransaction {
         transaction.validate();
 
         return transaction;
+    }
+
+    /**
+     * Reconstitutes an existing transaction from persistence, preserving its
+     * original identity, status, creation time and reversal link instead of
+     * resetting them the way {@link #create} does for brand-new transactions.
+     */
+    public static LedgerTransaction reconstitute(UUID transactionId, UUID externalId, EventType eventType,
+            List<LedgerEntry> entries, TransactionStatus status, Instant createdAt, UUID reversalTransactionId) {
+        Objects.requireNonNull(transactionId, "Transaction ID cannot be null");
+        Objects.requireNonNull(externalId, "External ID cannot be null");
+        Objects.requireNonNull(eventType, "Event type cannot be null");
+        Objects.requireNonNull(entries, "Entries cannot be null");
+        Objects.requireNonNull(status, "Status cannot be null");
+        Objects.requireNonNull(createdAt, "Created at cannot be null");
+
+        return new LedgerTransaction(
+                transactionId,
+                externalId,
+                eventType,
+                entries,
+                status,
+                createdAt,
+                reversalTransactionId);
     }
 
     /**

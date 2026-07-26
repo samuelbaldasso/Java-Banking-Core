@@ -32,12 +32,14 @@ public class LedgerEntryMapper {
     public LedgerEntry toDomain(LedgerEntryJpaEntity entity) {
         Money amount = Money.of(entity.getAmount(), entity.getCurrency());
 
-        return LedgerEntry.create(
+        return LedgerEntry.reconstitute(
                 entity.getLedgerEntryId(),
+                entity.getTransaction().getTransactionId(),
                 entity.getAccountId(),
                 amount,
                 entity.getEntryType(),
                 entity.getEventType(),
-                entity.getEventTime());
+                entity.getEventTime(),
+                entity.getRecordedAt());
     }
 }

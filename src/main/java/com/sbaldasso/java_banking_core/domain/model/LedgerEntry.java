@@ -78,6 +78,40 @@ public class LedgerEntry {
     }
 
     /**
+     * Reconstitutes an existing ledger entry from persistence, preserving its
+     * original identity instead of minting a new one.
+     */
+    public static LedgerEntry reconstitute(
+            UUID ledgerEntryId,
+            UUID transactionId,
+            UUID accountId,
+            Money amount,
+            EntryType entryType,
+            EventType eventType,
+            Instant eventTime,
+            Instant recordedAt) {
+
+        Objects.requireNonNull(ledgerEntryId, "Ledger entry ID cannot be null");
+        Objects.requireNonNull(transactionId, "Transaction ID cannot be null");
+        Objects.requireNonNull(accountId, "Account ID cannot be null");
+        Objects.requireNonNull(amount, "Amount cannot be null");
+        Objects.requireNonNull(entryType, "Entry type cannot be null");
+        Objects.requireNonNull(eventType, "Event type cannot be null");
+        Objects.requireNonNull(eventTime, "Event time cannot be null");
+        Objects.requireNonNull(recordedAt, "Recorded at cannot be null");
+
+        return new LedgerEntry(
+                ledgerEntryId,
+                transactionId,
+                accountId,
+                amount,
+                entryType,
+                eventType,
+                eventTime,
+                recordedAt);
+    }
+
+    /**
      * Creates a reversal entry (mirror of this entry with opposite type).
      * Used when reversing transactions.
      */

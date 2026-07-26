@@ -51,6 +51,26 @@ public class Account {
     }
 
     /**
+     * Reconstitutes an existing account from persistence, preserving its
+     * original identity instead of minting a new one.
+     */
+    public static Account reconstitute(UUID accountId, AccountType accountType, String currencyCode,
+            AccountStatus status, Instant createdAt) {
+        Objects.requireNonNull(accountId, "Account ID cannot be null");
+        Objects.requireNonNull(accountType, "Account type cannot be null");
+        Objects.requireNonNull(currencyCode, "Currency code cannot be null");
+        Objects.requireNonNull(status, "Status cannot be null");
+        Objects.requireNonNull(createdAt, "Created at cannot be null");
+
+        return new Account(
+                accountId,
+                accountType,
+                Currency.getInstance(currencyCode),
+                status,
+                createdAt);
+    }
+
+    /**
      * Validates if this account can accept a transaction.
      * 
      * @throws InvalidAccountException if account cannot accept transactions

@@ -3,6 +3,7 @@ package com.sbaldasso.java_banking_core.infrastructure.encryption;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import org.jasypt.encryption.StringEncryptor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,7 +24,7 @@ public class SensitiveDataConverter implements AttributeConverter<String, String
 
     private final StringEncryptor encryptor;
 
-    public SensitiveDataConverter(StringEncryptor encryptor) {
+    public SensitiveDataConverter(@Qualifier("jasyptStringEncryptor") StringEncryptor encryptor) {
         this.encryptor = encryptor;
     }
 
