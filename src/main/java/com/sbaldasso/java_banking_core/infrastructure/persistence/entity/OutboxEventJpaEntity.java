@@ -1,6 +1,9 @@
 package com.sbaldasso.java_banking_core.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -23,11 +26,11 @@ public class OutboxEventJpaEntity {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
 
-    // The production schema (Postgres JSONB column) is owned by the Flyway
-    // migration. "jsonb" isn't a portable Hibernate columnDefinition (H2,
-    // used by tests, doesn't understand it), so use TEXT here instead, same
-    // as lastError below.
-    @Column(name = "payload", nullable = false, columnDefinition = "TEXT")
+    // Logical JSON type: Hibernate maps this to "jsonb" on PostgreSQL (matching
+    // the Flyway-managed production column) and to H2's native JSON type in
+    // tests, instead of hardcoding a dialect-specific columnDefinition.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false)
     private String payload;
 
     @Column(name = "created_at", nullable = false)

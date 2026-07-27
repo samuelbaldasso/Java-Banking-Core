@@ -3,10 +3,15 @@ package com.sbaldasso.java_banking_core.api.exception;
 import com.sbaldasso.java_banking_core.domain.exception.DomainException;
 import com.sbaldasso.java_banking_core.domain.exception.InvalidAccountException;
 import com.sbaldasso.java_banking_core.domain.exception.InvalidTransactionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -17,6 +22,8 @@ import java.time.Instant;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handles invalid account exceptions (404 or 400).
@@ -84,6 +91,66 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles malformed request bodies, e.g. invalid JSON or an unknown enum value (400).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Malformed request body");
+        problemDetail.setTitle("Invalid Request");
+        problemDetail.setType(URI.create("https://banking-ledger.com/errors/invalid-request"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    /**
+     * Handles path/query parameters that cannot be converted to the expected type,
+     * e.g. a non-UUID account ID (400).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        String message = "Invalid value for parameter '" + ex.getName() + "'";
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
+        problemDetail.setTitle("Invalid Request");
+        problemDetail.setType(URI.create("https://banking-ledger.com/errors/invalid-request"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    /**
+     * Handles missing required query parameters (400).
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problemDetail.setTitle("Invalid Request");
+        problemDetail.setType(URI.create("https://banking-ledger.com/errors/invalid-request"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    /**
+     * Handles missing required fields, surfaced as NPEs from domain-level
+     * Objects.requireNonNull validation (400).
+     */
+    @ExceptionHandler(NullPointerException.class)
+    public ProblemDetail handleNullPointerException(NullPointerException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage());
+        problemDetail.setTitle("Invalid Request");
+        problemDetail.setType(URI.create("https://banking-ledger.com/errors/invalid-request"));
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return problemDetail;
+    }
+
+    /**
      * Handles all other exceptions (500).
      */
     @ExceptionHandler(Exception.class)
@@ -96,7 +163,7 @@ public class GlobalExceptionHandler {
         problemDetail.setProperty("timestamp", Instant.now());
 
         // Log the actual exception for debugging
-        // logger.error("Unexpected error", ex);
+        logger.error("Unexpected error", ex);
 
         return problemDetail;
     }
